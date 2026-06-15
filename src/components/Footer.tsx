@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Instagram, Facebook, Linkedin } from "lucide-react";
+import { ArrowUp, Share2, Link, Rss } from "lucide-react";
 import Logo from "./Logo";
 
 const services = [
@@ -39,9 +39,9 @@ export default function Footer() {
             </p>
             <div className="flex gap-3">
               {[
-                { icon: <Instagram size={18} />, label: "Instagram" },
-                { icon: <Facebook size={18} />, label: "Facebook" },
-                { icon: <Linkedin size={18} />, label: "LinkedIn" },
+                { icon: <Share2 size={18} />, label: "Instagram" },
+                { icon: <Rss size={18} />, label: "Facebook" },
+                { icon: <Link size={18} />, label: "LinkedIn" },
               ].map((s) => (
                 <button
                   key={s.label}
