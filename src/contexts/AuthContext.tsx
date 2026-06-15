@@ -52,11 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("*, tipo_perfil:tipos_perfil(id, nome, descricao, nivel)")
       .eq("id", userId)
       .single();
     if (error || !data) return null;
-    return data as UserProfile;
+    // normalize tipo_perfil_id → tipo for compatibility with existing pages
+    return { ...data, tipo: data.tipo_perfil_id } as UserProfile;
   };
 
   const login = async (credential: string, password: string) => {
@@ -99,11 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!found) throw new Error("Credenciais inválidas. Verifique CPF/email e senha.");
 
+      const tipoNorm = (found.tipo || found.profile?.toLowerCase() || "morador") as UserProfile["tipo"];
       const profile: UserProfile = {
         id: found.cpf,
         nome: found.name,
         email: found.email,
-        tipo: found.tipo || found.profile?.toLowerCase() || "morador",
+        tipo: tipoNorm,
+        tipo_perfil_id: tipoNorm,
         cpf: found.cpf,
         unidade: found.unit,
         ativo: true,

@@ -58,18 +58,28 @@ export interface ContactMessage {
   data: string;
 }
 
+export interface TipoPerfil {
+  id: string;
+  nome: string;
+  descricao?: string;
+  nivel: number;
+}
+
 export interface UserProfile {
   id: string;
   auth_user_id?: string;
   nome: string;
   email: string;
   tipo: string;
+  tipo_perfil_id?: string;
+  tipo_perfil?: TipoPerfil;
   cpf?: string;
   unidade?: string;
   ativo?: boolean;
   perfil?: string;
   condominio_id?: string;
   telefone?: string;
+  foto_url?: string;
 }
 
 export interface Condominio {
