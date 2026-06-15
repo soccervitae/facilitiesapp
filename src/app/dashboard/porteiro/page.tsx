@@ -1,330 +1,756 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { mockVisitantes, mockEncomendas, mockMoradores } from "@/lib/mockData";
-import { Visitante, Encomenda } from "@/types";
+import type { Visitante, Encomenda, Morador } from "@/types";
 import {
-  Users, Package, LogIn, LogOut, CheckCircle2, Clock, Plus, X, Shield,
+  ShieldCheck,
+  Users,
+  Package,
+  Home,
+  Building2,
+  UserPlus,
+  LogIn,
+  LogOut,
+  CheckCircle,
+  Clock,
+  Plus,
+  Phone,
+  Search,
+  AlertCircle,
 } from "lucide-react";
 
-const tabs = ["portaria", "visitantes", "encomendas", "moradores"] as const;
-type Tab = typeof tabs[number];
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const tabLabels: Record<Tab, string> = {
-  portaria: "Portaria",
-  visitantes: "Visitantes",
-  encomendas: "Encomendas",
-  moradores: "Moradores",
-};
+type Tab = "portaria" | "visitantes" | "encomendas" | "moradores";
 
-export default function PorteiroPage() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("portaria");
-  const [visitantes, setVisitantes] = useState<Visitante[]>(mockVisitantes);
-  const [encomendas, setEncomendas] = useState<Encomenda[]>(mockEncomendas);
-  const [showVisitanteForm, setShowVisitanteForm] = useState(false);
-  const [showEncForm, setShowEncForm] = useState(false);
-  const [newVisitante, setNewVisitante] = useState({ nome: "", documento: "", unidadeDestino: "" });
-  const [newEncomenda, setNewEncomenda] = useState({ destinatario: "", unidade: "", descricao: "" });
+interface NewVisitante {
+  nome: string;
+  documento: string;
+  unidadeDestino: string;
+}
 
-  const visitantesDentro = visitantes.filter((v) => v.status === "Dentro").length;
-  const encAguardando = encomendas.filter((e) => e.status === "Aguardando").length;
+interface NewEncomenda {
+  destinatario: string;
+  unidade: string;
+  descricao: string;
+}
 
-  const now = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  const handleRegistrarEntrada = (e: React.FormEvent) => {
-    e.preventDefault();
-    const novo: Visitante = {
-      id: `v-${Date.now()}`,
-      nome: newVisitante.nome,
-      documento: newVisitante.documento,
-      unidadeDestino: newVisitante.unidadeDestino,
-      entrada: now(),
-      status: "Dentro",
-    };
-    setVisitantes([novo, ...visitantes]);
-    setNewVisitante({ nome: "", documento: "", unidadeDestino: "" });
-    setShowVisitanteForm(false);
-  };
+function nowTimestamp(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-  const handleRegistrarSaida = (id: string) => {
-    setVisitantes(visitantes.map((v) => v.id === id ? { ...v, saida: now(), status: "Saiu" } : v));
-  };
+function formatTimestamp(ts: string): string {
+  if (!ts) return "—";
+  const parts = ts.split(" ");
+  if (parts.length === 2) {
+    const [date, time] = parts;
+    const [y, m, day] = date.split("-");
+    if (y && m && day) return `${day}/${m}/${y} ${time}`;
+  }
+  return ts;
+}
 
-  const handleReceberEncomenda = (e: React.FormEvent) => {
-    e.preventDefault();
-    const nova: Encomenda = {
-      id: `e-${Date.now()}`,
-      destinatario: newEncomenda.destinatario,
-      unidade: newEncomenda.unidade,
-      descricao: newEncomenda.descricao,
-      dataRecebimento: now(),
-      status: "Aguardando",
-    };
-    setEncomendas([nova, ...encomendas]);
-    setNewEncomenda({ destinatario: "", unidade: "", descricao: "" });
-    setShowEncForm(false);
-  };
+function formatTimeOnly(ts: string): string {
+  if (!ts) return "—";
+  const parts = ts.split(" ");
+  return parts[1] ?? ts;
+}
 
-  const handleConfirmarRetirada = (id: string) => {
-    setEncomendas(encomendas.map((e) => e.id === id ? { ...e, dataRetirada: now(), status: "Retirado" } : e));
-  };
+// ─── Status Badges ────────────────────────────────────────────────────────────
 
-  const statusBadge = (s: string) => {
-    if (s === "Dentro" || s === "Aguardando") return "bg-amber-500/20 text-amber-400";
-    return "bg-green-500/20 text-green-400";
-  };
+function VisitanteStatusBadge({ status }: { status: "Dentro" | "Saiu" }) {
+  return status === "Dentro" ? (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      Dentro
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/15 text-gray-400 border border-gray-500/30">
+      Saiu
+    </span>
+  );
+}
+
+function EncomendaStatusBadge({ status }: { status: "Aguardando" | "Retirado" }) {
+  return status === "Aguardando" ? (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+      <Clock size={11} /> Aguardando
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+      <CheckCircle size={11} /> Retirado
+    </span>
+  );
+}
+
+// ─── Tab: Portaria ────────────────────────────────────────────────────────────
+
+function TabPortaria({
+  visitantes,
+  encomendas,
+  onNavigate,
+}: {
+  visitantes: Visitante[];
+  encomendas: Encomenda[];
+  onNavigate: (tab: Tab) => void;
+}) {
+  const dentroCount     = visitantes.filter((v) => v.status === "Dentro").length;
+  const aguardandoCount = encomendas.filter((e) => e.status === "Aguardando").length;
+
+  const today       = new Date().toISOString().split("T")[0];
+  const todayEntries = visitantes.filter((v) => v.entrada.startsWith(today));
+
+  const summaryCards = [
+    {
+      label:     "Visitantes dentro",
+      value:     dentroCount,
+      icon:      <Users size={22} className="text-emerald-400" />,
+      border:    "border-emerald-500/20 bg-emerald-500/5",
+      textColor: "text-emerald-400",
+    },
+    {
+      label:     "Encomendas aguardando",
+      value:     aguardandoCount,
+      icon:      <Package size={22} className="text-yellow-400" />,
+      border:    "border-yellow-500/20 bg-yellow-500/5",
+      textColor: "text-yellow-400",
+    },
+    {
+      label:     "Entradas hoje",
+      value:     todayEntries.length,
+      icon:      <LogIn size={22} className="text-blue-400" />,
+      border:    "border-blue-500/20 bg-blue-500/5",
+      textColor: "text-blue-400",
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-white font-bold text-2xl" style={{ fontFamily: "Montserrat, sans-serif" }}>
-          Painel da Portaria
-        </h1>
-        <p className="text-white/50 text-sm mt-1">Olá, {user?.nome}! Controle de acesso em tempo real.</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-[#101c29] border border-white/10 rounded-xl p-1 w-fit flex-wrap">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === t ? "bg-[#af101a] text-white" : "text-white/50 hover:text-white"
-            }`}
-          >
-            {tabLabels[t]}
-          </button>
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {summaryCards.map(({ label, value, icon, border, textColor }) => (
+          <div key={label} className={`rounded-xl bg-[#101c29] border ${border} p-5`}>
+            <div className="p-2 rounded-lg bg-white/5 w-fit mb-3">{icon}</div>
+            <p className={`text-3xl font-bold font-montserrat ${textColor}`}>{value}</p>
+            <p className="text-sm text-gray-400 mt-1">{label}</p>
+          </div>
         ))}
       </div>
 
-      {/* Portaria */}
-      {activeTab === "portaria" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: "Visitantes Dentro", value: visitantesDentro, icon: <Users size={22} />, color: "text-amber-400 bg-amber-400/10" },
-              { label: "Encomendas Aguardando", value: encAguardando, icon: <Package size={22} />, color: "text-blue-400 bg-blue-400/10" },
-              { label: "Total Visitantes Hoje", value: visitantes.length, icon: <LogIn size={22} />, color: "text-green-400 bg-green-400/10" },
-              { label: "Moradores Cadastrados", value: mockMoradores.length, icon: <Shield size={22} />, color: "text-purple-400 bg-purple-400/10" },
-            ].map((k) => (
-              <div key={k.label} className="bg-[#101c29] border border-white/10 rounded-2xl p-5">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${k.color}`}>{k.icon}</div>
-                <div className="text-2xl font-bold text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>{k.value}</div>
-                <div className="text-white/50 text-xs mt-1">{k.label}</div>
+      {/* Quick actions */}
+      <div>
+        <h3 className="font-montserrat text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+          Registrar
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            onClick={() => onNavigate("visitantes")}
+            className="flex items-center gap-3 p-4 rounded-xl bg-[#101c29] border border-white/5 hover:border-[#af101a]/40 hover:bg-[#af101a]/10 transition-all duration-200 group"
+          >
+            <UserPlus size={20} className="text-[#af101a] group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-gray-200">Registrar Entrada de Visitante</span>
+          </button>
+          <button
+            onClick={() => onNavigate("encomendas")}
+            className="flex items-center gap-3 p-4 rounded-xl bg-[#101c29] border border-white/5 hover:border-[#af101a]/40 hover:bg-[#af101a]/10 transition-all duration-200 group"
+          >
+            <Package size={20} className="text-[#af101a] group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-gray-200">Registrar Nova Encomenda</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Today's activity */}
+      <div>
+        <h3 className="font-montserrat text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+          Atividade de hoje
+        </h3>
+        {todayEntries.length === 0 ? (
+          <div className="rounded-xl bg-[#101c29] border border-white/5 p-6 text-center text-gray-500 text-sm">
+            Nenhuma entrada registrada hoje.
+          </div>
+        ) : (
+          <div className="rounded-xl bg-[#101c29] border border-white/5 overflow-hidden divide-y divide-white/5">
+            {todayEntries.map((v) => (
+              <div key={v.id} className="flex items-center justify-between px-4 py-3 gap-4 hover:bg-white/[0.02] transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#af101a]/15 flex items-center justify-center shrink-0">
+                    <LogIn size={14} className="text-[#af101a]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{v.nome}</p>
+                    <p className="text-xs text-gray-500">{v.unidadeDestino}</p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 space-y-1">
+                  <p className="text-xs text-gray-400">{formatTimeOnly(v.entrada)}</p>
+                  <VisitanteStatusBadge status={v.status} />
+                </div>
               </div>
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-          {/* Recent activity */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#101c29] border border-white/10 rounded-2xl p-5">
-              <h3 className="text-white font-bold mb-4 text-sm">Visitantes Recentes</h3>
-              <div className="space-y-3">
-                {visitantes.slice(0, 3).map((v) => (
-                  <div key={v.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                    <LogIn size={15} className="text-[#af101a] flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{v.nome}</p>
-                      <p className="text-white/40 text-xs">{v.unidadeDestino} · {v.entrada}</p>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge(v.status)}`}>{v.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-[#101c29] border border-white/10 rounded-2xl p-5">
-              <h3 className="text-white font-bold mb-4 text-sm">Encomendas Pendentes</h3>
-              <div className="space-y-3">
-                {encomendas.filter((e) => e.status === "Aguardando").map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                    <Package size={15} className="text-[#af101a] flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{e.destinatario}</p>
-                      <p className="text-white/40 text-xs">{e.unidade} · {e.descricao}</p>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400">Aguardando</span>
-                  </div>
-                ))}
-                {encomendas.filter((e) => e.status === "Aguardando").length === 0 && (
-                  <p className="text-white/30 text-sm text-center py-4">Nenhuma encomenda pendente</p>
-                )}
-              </div>
-            </div>
-          </div>
+// ─── Tab: Visitantes ─────────────────────────────────────────────────────────
+
+function TabVisitantes({ visitantes: initial }: { visitantes: Visitante[] }) {
+  const [visitantes, setVisitantes] = useState<Visitante[]>(initial);
+  const [showForm, setShowForm]     = useState(false);
+  const [form, setForm]             = useState<NewVisitante>({ nome: "", documento: "", unidadeDestino: "" });
+  const [error, setError]           = useState("");
+  const [search, setSearch]         = useState("");
+
+  const handleRegisterEntry = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.nome.trim())            { setError("Informe o nome do visitante."); return; }
+    if (!form.documento.trim())       { setError("Informe o documento."); return; }
+    if (!form.unidadeDestino.trim())  { setError("Informe a unidade de destino."); return; }
+
+    const newVisitante: Visitante = {
+      id:             `v-${Date.now()}`,
+      nome:           form.nome.trim(),
+      documento:      form.documento.trim(),
+      unidadeDestino: form.unidadeDestino.trim(),
+      entrada:        nowTimestamp(),
+      status:         "Dentro",
+    };
+
+    setVisitantes((prev) => [newVisitante, ...prev]);
+    setForm({ nome: "", documento: "", unidadeDestino: "" });
+    setShowForm(false);
+    setError("");
+  };
+
+  const handleRegisterExit = (id: string) => {
+    setVisitantes((prev) =>
+      prev.map((v) =>
+        v.id === id ? { ...v, status: "Saiu" as const, saida: nowTimestamp() } : v
+      )
+    );
+  };
+
+  const filtered = visitantes.filter(
+    (v) =>
+      v.nome.toLowerCase().includes(search.toLowerCase()) ||
+      v.documento.includes(search) ||
+      v.unidadeDestino.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const dentroCount = visitantes.filter((v) => v.status === "Dentro").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-montserrat text-lg font-bold text-white">Visitantes</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{dentroCount} dentro agora · {visitantes.length} total</p>
         </div>
-      )}
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#af101a] hover:bg-[#c9151f] text-white text-sm font-medium transition-colors"
+        >
+          <Plus size={16} /> Registrar Entrada
+        </button>
+      </div>
 
-      {/* Visitantes */}
-      {activeTab === "visitantes" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowVisitanteForm(!showVisitanteForm)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#af101a] hover:bg-[#930010] text-white text-sm font-semibold transition-colors"
-            >
-              {showVisitanteForm ? <X size={16} /> : <Plus size={16} />}
-              {showVisitanteForm ? "Cancelar" : "Registrar Entrada"}
-            </button>
-          </div>
+      {/* Registration form */}
+      {showForm && (
+        <form
+          onSubmit={handleRegisterEntry}
+          className="rounded-xl bg-[#101c29] border border-[#af101a]/25 p-5 space-y-4"
+        >
+          <h3 className="font-montserrat font-semibold text-white">Novo Visitante</h3>
 
-          {showVisitanteForm && (
-            <form onSubmit={handleRegistrarEntrada} className="bg-[#101c29] border border-[#af101a]/30 rounded-2xl p-5 space-y-3">
-              <h3 className="text-white font-bold text-sm">Registrar Entrada de Visitante</h3>
-              <input required type="text" placeholder="Nome do visitante" value={newVisitante.nome}
-                onChange={(e) => setNewVisitante({ ...newVisitante, nome: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <input required type="text" placeholder="Documento (CPF/RG)" value={newVisitante.documento}
-                onChange={(e) => setNewVisitante({ ...newVisitante, documento: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <input required type="text" placeholder="Unidade de destino (ex: Apto 42-A)" value={newVisitante.unidadeDestino}
-                onChange={(e) => setNewVisitante({ ...newVisitante, unidadeDestino: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <button type="submit" className="w-full py-2.5 rounded-lg bg-[#af101a] text-white text-sm font-semibold">
-                Registrar Entrada
-              </button>
-            </form>
+          {error && (
+            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+              <AlertCircle size={13} /> {error}
+            </p>
           )}
 
-          <div className="bg-[#101c29] border border-white/10 rounded-2xl overflow-hidden">
-            <div className="p-5 border-b border-white/10">
-              <h3 className="text-white font-bold text-sm">Registro de Visitantes</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Nome completo</label>
+              <input
+                type="text"
+                placeholder="Nome do visitante"
+                value={form.nome}
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
             </div>
-            <div className="divide-y divide-white/5">
-              {visitantes.map((v) => (
-                <div key={v.id} className="flex items-start gap-4 p-4 hover:bg-white/5 transition-colors">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${v.status === "Dentro" ? "bg-amber-400/10" : "bg-green-400/10"}`}>
-                    {v.status === "Dentro" ? <LogIn size={16} className="text-amber-400" /> : <LogOut size={16} className="text-green-400" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium">{v.nome}</p>
-                    <p className="text-white/50 text-xs mt-0.5">Doc: {v.documento} · Destino: {v.unidadeDestino}</p>
-                    <p className="text-white/30 text-xs mt-0.5">
-                      Entrada: {v.entrada}
-                      {v.saida && ` · Saída: ${v.saida}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge(v.status)}`}>{v.status}</span>
-                    {v.status === "Dentro" && (
-                      <button
-                        onClick={() => handleRegistrarSaida(v.id)}
-                        className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-xs transition-colors"
-                      >
-                        Registrar Saída
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Documento (CPF/RG)</label>
+              <input
+                type="text"
+                placeholder="000.000.000-00"
+                value={form.documento}
+                onChange={(e) => setForm((f) => ({ ...f, documento: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Unidade de destino</label>
+              <input
+                type="text"
+                placeholder="Ex: Apto 42-A"
+                value={form.unidadeDestino}
+                onChange={(e) => setForm((f) => ({ ...f, unidadeDestino: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Encomendas */}
-      {activeTab === "encomendas" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex gap-2 pt-1">
             <button
-              onClick={() => setShowEncForm(!showEncForm)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#af101a] hover:bg-[#930010] text-white text-sm font-semibold transition-colors"
+              type="submit"
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#af101a] hover:bg-[#c9151f] text-white text-sm font-medium transition-colors"
             >
-              {showEncForm ? <X size={16} /> : <Plus size={16} />}
-              {showEncForm ? "Cancelar" : "Receber Encomenda"}
+              <LogIn size={14} /> Registrar Entrada
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setError(""); }}
+              className="px-5 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-sm font-medium hover:bg-white/10 transition-colors"
+            >
+              Cancelar
             </button>
           </div>
-
-          {showEncForm && (
-            <form onSubmit={handleReceberEncomenda} className="bg-[#101c29] border border-[#af101a]/30 rounded-2xl p-5 space-y-3">
-              <h3 className="text-white font-bold text-sm">Registrar Recebimento de Encomenda</h3>
-              <input required type="text" placeholder="Nome do destinatário" value={newEncomenda.destinatario}
-                onChange={(e) => setNewEncomenda({ ...newEncomenda, destinatario: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <input required type="text" placeholder="Unidade (ex: Apto 42-A)" value={newEncomenda.unidade}
-                onChange={(e) => setNewEncomenda({ ...newEncomenda, unidade: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <input required type="text" placeholder="Descrição (ex: Caixa Amazon)" value={newEncomenda.descricao}
-                onChange={(e) => setNewEncomenda({ ...newEncomenda, descricao: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#af101a] placeholder:text-white/30" />
-              <button type="submit" className="w-full py-2.5 rounded-lg bg-[#af101a] text-white text-sm font-semibold">
-                Registrar Encomenda
-              </button>
-            </form>
-          )}
-
-          <div className="bg-[#101c29] border border-white/10 rounded-2xl overflow-hidden">
-            <div className="p-5 border-b border-white/10">
-              <h3 className="text-white font-bold text-sm">Registro de Encomendas</h3>
-            </div>
-            <div className="divide-y divide-white/5">
-              {encomendas.map((enc) => (
-                <div key={enc.id} className="flex items-start gap-4 p-4 hover:bg-white/5 transition-colors">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${enc.status === "Aguardando" ? "bg-amber-400/10" : "bg-green-400/10"}`}>
-                    {enc.status === "Aguardando" ? <Package size={16} className="text-amber-400" /> : <CheckCircle2 size={16} className="text-green-400" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium">{enc.destinatario}</p>
-                    <p className="text-white/50 text-xs mt-0.5">{enc.unidade} · {enc.descricao}</p>
-                    <p className="text-white/30 text-xs mt-0.5">
-                      Recebido: {enc.dataRecebimento}
-                      {enc.dataRetirada && ` · Retirado: ${enc.dataRetirada}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge(enc.status)}`}>{enc.status}</span>
-                    {enc.status === "Aguardando" && (
-                      <button
-                        onClick={() => handleConfirmarRetirada(enc.id)}
-                        className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-xs transition-colors"
-                      >
-                        Confirmar Retirada
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        </form>
       )}
 
-      {/* Moradores */}
-      {activeTab === "moradores" && (
-        <div className="bg-[#101c29] border border-white/10 rounded-2xl overflow-hidden">
-          <div className="p-5 border-b border-white/10">
-            <h3 className="text-white font-bold text-sm">Moradores Cadastrados</h3>
-            <p className="text-white/40 text-xs mt-1">Lista de moradores autorizados</p>
-          </div>
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Buscar por nome, documento ou unidade..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-[#101c29] border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl bg-[#101c29] border border-white/5 overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-white/5 bg-white/[0.02]">
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Nome</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Documento</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Unidade</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Entrada</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 text-sm">Nenhum visitante encontrado.</div>
+        ) : (
           <div className="divide-y divide-white/5">
-            {mockMoradores.map((m) => (
-              <div key={m.id} className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors">
-                <div className="w-9 h-9 rounded-xl bg-[#af101a]/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#af101a] font-bold text-sm">{m.nome.charAt(0)}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium">{m.nome}</p>
-                  <p className="text-white/40 text-xs mt-0.5">{m.unidade} · {m.email}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:block px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white/50">
-                    {m.tipo}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.status === "Ativo" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                    {m.status}
-                  </span>
+            {filtered.map((v) => (
+              <div
+                key={v.id}
+                className="flex flex-col sm:grid sm:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-2 sm:gap-4 items-start sm:items-center px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              >
+                <p className="text-sm font-medium text-white">{v.nome}</p>
+                <p className="text-sm text-gray-400">{v.documento}</p>
+                <p className="text-sm text-gray-400">{v.unidadeDestino}</p>
+                <p className="text-xs text-gray-500">{formatTimestamp(v.entrada)}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <VisitanteStatusBadge status={v.status} />
+                  {v.status === "Dentro" && (
+                    <button
+                      onClick={() => handleRegisterExit(v.id)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs font-medium hover:bg-red-500/15 hover:text-red-400 hover:border-red-500/30 transition-all"
+                    >
+                      <LogOut size={12} /> Registrar Saída
+                    </button>
+                  )}
+                  {v.status === "Saiu" && v.saida && (
+                    <span className="text-xs text-gray-600">Saída: {formatTimeOnly(v.saida)}</span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Encomendas ─────────────────────────────────────────────────────────
+
+function TabEncomendas({ encomendas: initial }: { encomendas: Encomenda[] }) {
+  const [encomendas, setEncomendas] = useState<Encomenda[]>(initial);
+  const [showForm, setShowForm]     = useState(false);
+  const [form, setForm]             = useState<NewEncomenda>({ destinatario: "", unidade: "", descricao: "" });
+  const [error, setError]           = useState("");
+  const [search, setSearch]         = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.destinatario.trim()) { setError("Informe o destinatário."); return; }
+    if (!form.unidade.trim())      { setError("Informe a unidade."); return; }
+    if (!form.descricao.trim())    { setError("Informe uma descrição da encomenda."); return; }
+
+    const newEncomenda: Encomenda = {
+      id:              `e-${Date.now()}`,
+      destinatario:    form.destinatario.trim(),
+      unidade:         form.unidade.trim(),
+      descricao:       form.descricao.trim(),
+      dataRecebimento: nowTimestamp(),
+      status:          "Aguardando",
+    };
+
+    setEncomendas((prev) => [newEncomenda, ...prev]);
+    setForm({ destinatario: "", unidade: "", descricao: "" });
+    setShowForm(false);
+    setError("");
+  };
+
+  const handleConfirmRetirada = (id: string) => {
+    setEncomendas((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? { ...e, status: "Retirado" as const, dataRetirada: nowTimestamp() }
+          : e
+      )
+    );
+  };
+
+  const filtered = encomendas.filter(
+    (e) =>
+      e.destinatario.toLowerCase().includes(search.toLowerCase()) ||
+      e.unidade.toLowerCase().includes(search.toLowerCase()) ||
+      e.descricao.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const aguardandoCount = encomendas.filter((e) => e.status === "Aguardando").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-montserrat text-lg font-bold text-white">Encomendas</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{aguardandoCount} aguardando retirada · {encomendas.length} total</p>
         </div>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#af101a] hover:bg-[#c9151f] text-white text-sm font-medium transition-colors"
+        >
+          <Plus size={16} /> Nova Encomenda
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-xl bg-[#101c29] border border-[#af101a]/25 p-5 space-y-4"
+        >
+          <h3 className="font-montserrat font-semibold text-white">Registrar Encomenda</h3>
+
+          {error && (
+            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+              <AlertCircle size={13} /> {error}
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Destinatário</label>
+              <input
+                type="text"
+                placeholder="Nome do morador"
+                value={form.destinatario}
+                onChange={(e) => setForm((f) => ({ ...f, destinatario: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Unidade</label>
+              <input
+                type="text"
+                placeholder="Ex: Apto 42-A"
+                value={form.unidade}
+                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-gray-400 font-medium">Descrição</label>
+              <input
+                type="text"
+                placeholder="Ex: Caixa Amazon"
+                value={form.descricao}
+                onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+                className="w-full bg-[#070b12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#af101a] hover:bg-[#c9151f] text-white text-sm font-medium transition-colors"
+            >
+              <Package size={14} /> Registrar Encomenda
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setError(""); }}
+              className="px-5 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-sm font-medium hover:bg-white/10 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
       )}
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Buscar por destinatário, unidade ou descrição..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-[#101c29] border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl bg-[#101c29] border border-white/5 overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[1.5fr_auto_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-white/5 bg-white/[0.02]">
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Destinatário</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Unidade</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Descrição</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Recebido em</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 text-sm">Nenhuma encomenda encontrada.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {filtered.map((enc) => (
+              <div
+                key={enc.id}
+                className="flex flex-col sm:grid sm:grid-cols-[1.5fr_auto_1fr_1fr_auto] gap-2 sm:gap-4 items-start sm:items-center px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              >
+                <p className="text-sm font-medium text-white">{enc.destinatario}</p>
+                <p className="text-sm text-gray-300 whitespace-nowrap">{enc.unidade}</p>
+                <p className="text-sm text-gray-400 truncate">{enc.descricao}</p>
+                <p className="text-xs text-gray-500 whitespace-nowrap">{formatTimestamp(enc.dataRecebimento)}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <EncomendaStatusBadge status={enc.status} />
+                  {enc.status === "Aguardando" && (
+                    <button
+                      onClick={() => handleConfirmRetirada(enc.id)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs font-medium hover:bg-emerald-500/15 hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
+                    >
+                      <CheckCircle size={12} /> Confirmar Retirada
+                    </button>
+                  )}
+                  {enc.status === "Retirado" && enc.dataRetirada && (
+                    <span className="text-xs text-gray-600">Retirado: {formatTimestamp(enc.dataRetirada)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Moradores ───────────────────────────────────────────────────────────
+
+function TabMoradores({ moradores }: { moradores: Morador[] }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = moradores.filter(
+    (m) =>
+      m.nome.toLowerCase().includes(search.toLowerCase()) ||
+      m.unidade.toLowerCase().includes(search.toLowerCase()) ||
+      m.telefone.includes(search)
+  );
+
+  const statusColor: Record<string, string> = {
+    Ativo:        "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+    Inadimplente: "bg-red-500/15 text-red-400 border border-red-500/30",
+    Inativo:      "bg-gray-500/15 text-gray-400 border border-gray-500/30",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-montserrat text-lg font-bold text-white">Moradores</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{moradores.length} morador(es) cadastrado(s)</p>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Buscar por nome, unidade ou telefone..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-[#101c29] border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#af101a]/60"
+        />
+      </div>
+
+      {/* List */}
+      <div className="rounded-xl bg-[#101c29] border border-white/5 overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[1.5fr_auto_auto_auto] gap-4 px-4 py-2.5 border-b border-white/5 bg-white/[0.02]">
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Nome</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Unidade</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Telefone</span>
+          <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 text-sm">Nenhum morador encontrado.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {filtered.map((m) => (
+              <div
+                key={m.id}
+                className="flex flex-col sm:grid sm:grid-cols-[1.5fr_auto_auto_auto] gap-2 sm:gap-4 items-start sm:items-center px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              >
+                <div>
+                  <p className="text-sm font-medium text-white">{m.nome}</p>
+                  <p className="text-xs text-gray-500">{m.tipo}</p>
+                </div>
+                <p className="text-sm text-gray-300 whitespace-nowrap">{m.unidade}</p>
+                <div className="flex items-center gap-1.5 text-sm text-gray-400 whitespace-nowrap">
+                  <Phone size={12} className="text-gray-600" />
+                  {m.telefone}
+                </div>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    statusColor[m.status] ?? statusColor["Inativo"]
+                  }`}
+                >
+                  {m.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Nav Tab Button ───────────────────────────────────────────────────────────
+
+function NavTab({
+  label,
+  icon,
+  active,
+  badge,
+  onClick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+        active
+          ? "bg-[#af101a] text-white shadow-lg shadow-[#af101a]/20"
+          : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+      }`}
+    >
+      {icon}
+      {label}
+      {badge !== undefined && badge > 0 && (
+        <span
+          className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+            active ? "bg-white/25 text-white" : "bg-[#af101a] text-white"
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function PorteiroPage() {
+  const [activeTab, setActiveTab]   = useState<Tab>("portaria");
+  const [visitantes]                = useState<Visitante[]>(mockVisitantes);
+  const [encomendas]                = useState<Encomenda[]>(mockEncomendas);
+
+  const dentroCount     = visitantes.filter((v) => v.status === "Dentro").length;
+  const aguardandoCount = encomendas.filter((e) => e.status === "Aguardando").length;
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: "portaria",   label: "Portaria",   icon: <ShieldCheck size={16} /> },
+    { id: "visitantes", label: "Visitantes", icon: <Users size={16} />,   badge: dentroCount > 0 ? dentroCount : undefined },
+    { id: "encomendas", label: "Encomendas", icon: <Package size={16} />, badge: aguardandoCount > 0 ? aguardandoCount : undefined },
+    { id: "moradores",  label: "Moradores",  icon: <Home size={16} /> },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#070b12] text-white">
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Page header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 size={18} className="text-[#af101a]" />
+            <span className="text-xs text-gray-500 uppercase tracking-widest font-medium">Facilities</span>
+          </div>
+          <h1 className="font-montserrat text-3xl font-bold text-white">Painel da Portaria</h1>
+          <p className="text-sm text-gray-400 mt-1">Controle de acesso e recebimento de encomendas</p>
+        </div>
+
+        {/* Tab navigation */}
+        <div className="flex gap-1 overflow-x-auto pb-2 mb-6">
+          {tabs.map((t) => (
+            <NavTab
+              key={t.id}
+              label={t.label}
+              icon={t.icon}
+              active={activeTab === t.id}
+              badge={t.badge}
+              onClick={() => setActiveTab(t.id)}
+            />
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div>
+          {activeTab === "portaria" && (
+            <TabPortaria
+              visitantes={mockVisitantes}
+              encomendas={mockEncomendas}
+              onNavigate={setActiveTab}
+            />
+          )}
+          {activeTab === "visitantes" && <TabVisitantes visitantes={mockVisitantes} />}
+          {activeTab === "encomendas" && <TabEncomendas encomendas={mockEncomendas} />}
+          {activeTab === "moradores"  && <TabMoradores  moradores={mockMoradores} />}
+        </div>
+      </div>
     </div>
   );
 }
