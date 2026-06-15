@@ -52,8 +52,7 @@ create table if not exists public.profiles (
   nome            text not null,
   email           text not null,
   cpf             text unique,
-  tipo_perfil_id  text not null default 'morador'
-                  references public.tipos_perfil(id),
+  tipo_perfil_id  text not null default 'morador',
   unidade         text,
   telefone        text,
   foto_url        text,
@@ -62,6 +61,37 @@ create table if not exists public.profiles (
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
+
+-- Migração: adiciona colunas novas se a tabela já existia com schema antigo
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_name='profiles' and column_name='tipo_perfil_id') then
+    alter table public.profiles add column tipo_perfil_id text not null default 'morador';
+  end if;
+  if exists (select 1 from information_schema.columns where table_name='profiles' and column_name='tipo') then
+    update public.profiles set tipo_perfil_id = tipo where tipo_perfil_id = 'morador' and tipo is not null;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='profiles' and column_name='telefone') then
+    alter table public.profiles add column telefone text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='profiles' and column_name='foto_url') then
+    alter table public.profiles add column foto_url text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name='profiles' and column_name='updated_at') then
+    alter table public.profiles add column updated_at timestamptz default now();
+  end if;
+end $$;
+
+-- Adiciona FK para tipos_perfil (ignora se já existe)
+do $$ begin
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_name = 'profiles_tipo_perfil_id_fkey'
+  ) then
+    alter table public.profiles
+      add constraint profiles_tipo_perfil_id_fkey
+      foreign key (tipo_perfil_id) references public.tipos_perfil(id);
+  end if;
+end $$;
 
 create table if not exists public.condominios (
   id            text primary key,
