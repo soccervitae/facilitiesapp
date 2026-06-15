@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Building2,
   Users,
@@ -46,7 +46,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   pendente: { label: "Pendente", color: "bg-yellow-500/20 text-yellow-300" },
 };
 
-const AUDIT_ICON: Record<string, JSX.Element> = {
+const AUDIT_ICON: Record<string, React.ReactElement> = {
   login:    <LogIn  className="w-4 h-4 text-blue-400" />,
   logout:   <LogOut className="w-4 h-4 text-white/40" />,
   create:   <Plus   className="w-4 h-4 text-green-400" />,

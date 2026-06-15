@@ -296,7 +296,7 @@ function TabReservas({ bookings: initial }: { bookings: Booking[] }) {
       id: `bk-${Date.now()}`,
       area: form.area,
       data: form.data,
-      periodo: form.periodo,
+      periodo: form.periodo as Booking["periodo"],
       status: "Pendente",
     };
     setBookings((prev) => [newBooking, ...prev]);
@@ -424,7 +424,7 @@ function TabChamados({ tickets: initial }: { tickets: Ticket[] }) {
     const newTicket: Ticket = {
       id:          `t-${Date.now()}`,
       titulo:      form.titulo,
-      categoria:   form.categoria,
+      categoria:   form.categoria as Ticket["categoria"],
       descricao:   form.descricao,
       dataCriacao: new Date().toISOString().split("T")[0],
       status:      "Aberto",
