@@ -184,11 +184,17 @@ alter table public.assembleias   enable row level security;
 alter table public.visitantes    enable row level security;
 alter table public.encomendas    enable row level security;
 
--- tipos_perfil: todos autenticados podem ler
+-- ── tipos_perfil ─────────────────────────────────────────────────────────────
+drop policy if exists "Autenticados leem tipos de perfil" on public.tipos_perfil;
 create policy "Autenticados leem tipos de perfil"
   on public.tipos_perfil for select using (auth.role() = 'authenticated');
 
--- profiles: cada um vê o próprio; admin vê todos
+-- ── profiles ─────────────────────────────────────────────────────────────────
+drop policy if exists "Usuário vê próprio perfil"      on public.profiles;
+drop policy if exists "Usuário atualiza próprio perfil" on public.profiles;
+drop policy if exists "Admin vê todos os perfis"        on public.profiles;
+drop policy if exists "Admin gerencia todos os perfis"  on public.profiles;
+
 create policy "Usuário vê próprio perfil"
   on public.profiles for select using (auth.uid() = id);
 
@@ -205,7 +211,10 @@ create policy "Admin gerencia todos os perfis"
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.tipo_perfil_id = 'administrador')
   );
 
--- condominios
+-- ── condominios ──────────────────────────────────────────────────────────────
+drop policy if exists "Autenticados leem condomínios" on public.condominios;
+drop policy if exists "Admin gerencia condomínios"    on public.condominios;
+
 create policy "Autenticados leem condomínios"
   on public.condominios for select using (auth.role() = 'authenticated');
 
@@ -214,7 +223,10 @@ create policy "Admin gerencia condomínios"
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id = 'administrador')
   );
 
--- moradores
+-- ── moradores ────────────────────────────────────────────────────────────────
+drop policy if exists "Autenticados leem moradores"        on public.moradores;
+drop policy if exists "Admin e Síndico gerenciam moradores" on public.moradores;
+
 create policy "Autenticados leem moradores"
   on public.moradores for select using (auth.role() = 'authenticated');
 
@@ -223,7 +235,12 @@ create policy "Admin e Síndico gerenciam moradores"
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico'))
   );
 
--- tickets
+-- ── tickets ──────────────────────────────────────────────────────────────────
+drop policy if exists "Usuário vê próprios chamados"    on public.tickets;
+drop policy if exists "Gestores veem todos os chamados" on public.tickets;
+drop policy if exists "Autenticado abre chamado"        on public.tickets;
+drop policy if exists "Gestores atualizam chamados"     on public.tickets;
+
 create policy "Usuário vê próprios chamados"
   on public.tickets for select using (autor_id = auth.uid());
 
@@ -240,7 +257,10 @@ create policy "Gestores atualizam chamados"
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico','colaborador'))
   );
 
--- boletos
+-- ── boletos ──────────────────────────────────────────────────────────────────
+drop policy if exists "Admin e Síndico gerenciam boletos" on public.boletos;
+drop policy if exists "Morador vê próprios boletos"       on public.boletos;
+
 create policy "Admin e Síndico gerenciam boletos"
   on public.boletos for all using (
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico'))
@@ -254,7 +274,11 @@ create policy "Morador vê próprios boletos"
     )
   );
 
--- reservas
+-- ── reservas ─────────────────────────────────────────────────────────────────
+drop policy if exists "Autenticado cria reserva"             on public.reservas;
+drop policy if exists "Usuário vê próprias reservas"         on public.reservas;
+drop policy if exists "Admin e Síndico veem todas as reservas" on public.reservas;
+
 create policy "Autenticado cria reserva"
   on public.reservas for insert with check (auth.role() = 'authenticated');
 
@@ -266,7 +290,10 @@ create policy "Admin e Síndico veem todas as reservas"
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico'))
   );
 
--- assembleias
+-- ── assembleias ──────────────────────────────────────────────────────────────
+drop policy if exists "Autenticados leem assembleias"        on public.assembleias;
+drop policy if exists "Admin e Síndico gerenciam assembleias" on public.assembleias;
+
 create policy "Autenticados leem assembleias"
   on public.assembleias for select using (auth.role() = 'authenticated');
 
@@ -275,13 +302,17 @@ create policy "Admin e Síndico gerenciam assembleias"
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico'))
   );
 
--- visitantes
+-- ── visitantes ───────────────────────────────────────────────────────────────
+drop policy if exists "Porteiro e gestores gerenciam visitantes" on public.visitantes;
+
 create policy "Porteiro e gestores gerenciam visitantes"
   on public.visitantes for all using (
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico','porteiro'))
   );
 
--- encomendas
+-- ── encomendas ───────────────────────────────────────────────────────────────
+drop policy if exists "Porteiro e gestores gerenciam encomendas" on public.encomendas;
+
 create policy "Porteiro e gestores gerenciam encomendas"
   on public.encomendas for all using (
     exists (select 1 from public.profiles where id = auth.uid() and tipo_perfil_id in ('administrador','sindico','porteiro'))
