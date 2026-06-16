@@ -140,7 +140,7 @@ export default function BalancePage({ params }: { params: Promise<{ id: string }
               <YAxis stroke="var(--color-muted)" tick={{ fontSize: 11 }} tickFormatter={v => formatCurrency(v)} />
               <Tooltip
                 contentStyle={{ backgroundColor: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
-                formatter={(value: number) => [formatCurrency(value), 'Saldo']}
+                formatter={(value) => [formatCurrency(Number(value)), 'Saldo']}
               />
               <Line type="monotone" dataKey="balance" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
             </LineChart>
